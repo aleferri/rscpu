@@ -1,0 +1,283 @@
+Modified Very Simple CPU is a teaching architecture to explain CPU implementation.
+I don't remember the book, if you know the book or are the author (in the same book you described the Relative Simple CPU) tell me the title
+and your name, and i will gladly cite you in the credits. Thank you.
+
+The architecture is a 16 bit one with 8 instruction. The main register is 16 bit wide
+
+The visible register set is made by two registers: PC (the instruction pointer) and AC (the accumulator)
+Memory contains 4 16 bit index registers, they are addressed directly in 00h, 02h, 04h, 06h and their indirection in 08h, 0Ah, 0Ch, 0Eh.
+e.g.: ADD 08h is equal to ADD [00h]
+ 
+
+Full Register Set (Visible + Hidden)
+
+PC - 16 bit  -- Visible, Program Counter
+AC - 16 bit  -- ACcumulator register
+DR - 16 bit  -- Data Register, contains the read data
+TR - 16 bit  -- Temp Register, contains AC at the beginning of each instruction
+AR - 16 bit  -- Address Register, output to the memory
+IR - 04 bit  -- Instruction Register, contains the 2 bit opcode 
+
+Encoding
+
+The encoding is composed of 4 bit opcode and 12 bit address/literal.
+
+Instructions
+
+[ Legend ] 
+    @ : address
+    <- : assign
+    , : parallel (e.g. IR <- X, AR <- Y means that both IR and AR get updated in the same clock cycle)
+    ; : await next clock
+    + : binary add
+    & : binary and
+
+ADD @ : 0000 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]
+    DR <- MEM[AR]; 
+    AC <- AC + DR; TR <- AC + DR
+
+AND @ : 0010 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]
+    DR <- MEM[AR]; 
+    AC <- AC & DR; TR <- AC & DR
+    
+NOR @ : 0011 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    DR <- MEM[AR]; 
+    AC <- AC nor DR; TR <- AC nor DR
+    
+INC @ : 0100 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    DR <- MEM[AR]; 
+    TR <- DR + 1;
+    MEM[AR] <- TR;
+
+
+JMP @ : 1000 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    PC <- AR;
+
+JZE @ : 1010 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    PC <- AR IF AC == 0;
+
+LIT @ : 1100 literal( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    DR <- MEM[AR]
+    AC <- DR; TR <- DR
+
+STA @ : 1111 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    MEM[AR] <- TR;
+
+Shared BUS
+
+BUS_0 := connect( AR(read), DR(read), IR(read), MEM_D_IN(write) );                      BUS_0 has only one writer (MEM_D_IN)
+BUS_1 := connect( PC(read), PC(write), AR(write), MEM_ADR(read), 0x100(write) );        BUS_1 has three writers (AR, PC, 0x0100), and two reader (PC & MEM_ADR)
+BUS_2 := connect( TR(read), AC(read/write), ALU(write), AR(write), DR_URY(write) );     BUS_2 has four writers (ALU, AC, AR, DR_URY) and two readers (TR & AC)
+
+
+Signals
+
+AR_RB0          AR <- BUS_0
+DR_RB0          DR <- BUS_0
+IR_RB0          IR <- BUS_0
+PC_RB1          PC <- BUS_1
+PC_WB1          PC -> BUS_1
+AR_WB1          AR -> BUS_1
+TR_RB2          TR <- BUS_2
+AC_RB2          AC <- BUS_2
+FN_WB2          FN -> BUS_2     ( ALU binary operations )
+AR_WB2          AR -> BUS_2
+UN_WB2          UN -> BUS_2     ( Unary operations )
+ALU_MUX         ALU <- select( AC + DR, AC & DR, AC nor DR )
+W_MEM           MEM[ MEM_ADR ] <- TR
+PC_INC          PC <- PC + 1
+
+
+Registers Signals:
+
+
+IR signals:
+IR_LOAD_0
+
+AR signals:
+AR_LOAD_0
+AR_OUTP_1
+AR_OUTP_2
+
+DR signals:
+DR_LOAD_0
+
+PC signals:
+PC_LOAD_1
+PC_OUTP_1
+PC_INC
+
+TR signals:
+TR_LOAD_2
+
+AC signals:
+AC_LOAD_2
+AC_OUTP_2
+
+FN signals:
+FN_OUTP_2
+FN_MUX
+
+UN signals:
+UN_OUTP_2
+
+
+
+Direct links
+
+AC          -> ALU_PORT_0
+DR          -> ALU_PORT_1
+TR          -> MEM_D_OUT
+IR[1:0]     -> ALU_SELECT
+
+
+
+Microcontrol States
+
+INIT0: PC_WB1;
+INIT1 : PC_WB1, ~AR_WB1;    // PUT OUT PC
+INIT2 : FETCH;              // FETCH OP
+ADD0 : ~PC_WB1, AR_WB1, PC_INC;
+ADD1 : DR_RB0, PC_WB1;
+ADD2 : AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
+AND0 : ~PC_WB1, AR_WB1, PC_INC;
+AND1 : DR_RB0, PC_WB1;
+AND2 : AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
+NOR0 : ~PC_WB1, AR_WB1, PC_INC;
+NOR1 : DR_RB0, PC_WB1;
+NOR2 : AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
+INC0 : ~PC_WB1, AR_WB1, PC_INC;
+INC1 : DR_RB0;
+INC2 : DR_WB2, TR_RB2;
+INC3 : W_MEM, AC_WB2, TR_RB2, GOTO_1;
+JMP0 : ~PC_WB1, AR_WB1, PC_INC;
+JMP1 : PC_RB1, GOTO_1;;
+JZE0 : ~PC_WB1, AR_WB1, PC_INC;
+JZE1 : PC_RB1 & TR_IS_Z, GOTO_1;
+LIT0 : ~PC_WB1, AR_WB1, PC_INC;
+LIT1 : AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
+STA0 : ~PC_WB1, AR_WB1, PC_INC;
+STA1 : W_MEM, GOTO_1;
+
+
+
+States Reduction
+
+ADD0 = AND0 = NOR0 = INC0 = JMP0 = JZO0 = LIT0 = STA0 -> READY
+ADD1 = AND1 = NOR1 -> ALU1
+ADD2 = AND2 = NOR2 -> ALU2
+
+INIT0 : LD_PC #0100;        // INIT PC
+INIT1 : PC_WB1, ~AR_WB1;    // PUT OUT PC
+INIT2 : FETCH;              // FETCH OP
+READY : ~PC_WB1, AR_WB1, PC_INC;
+{
+    ALU1: DR_RB0, PC_WB1;
+    ALU2: AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
+    INC1: DR_RB0;
+    INC2: DR_WB2, TR_RB2;
+    INC3: W_MEM, AC_WB2, TR_RB2, GOTO_1;
+    JMP1: PC_RB1, GOTO_1;
+    JZE1: PC_RB1 & TR_IS_Z, GOTO_1;
+    LIT1: AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
+    STA1: W_MEM, GOTO_1;
+}
+
+Microcode (16 bit):
+goto(0: inc, 1: next = 0001, 2: next = 0010, 3: next = 0011) | fetch(1) | dr_rd0 | ar_wb1 | w_mem | pc_wb1 | pc_inc | pc_rd1 | tr_rd2 | ac_rd2 | bus2_wr(2) | z_on | reserveds(2)
+
+
+States Encoding
+
+INIT0   = 0000
+INIT1   = 0001
+INIT2   = 0010
+READY   = 0011
+JMP1    = 0100
+JZE1    = 0101
+STA1    = 0110
+LIT1    = 0111
+INC1    = 1000
+INC2    = 1001
+INC3    = 1010
+ALU1    = 1101
+ALU2    = 1110
+
+
+Opcodes to Microcontrol States
+0000  -> 1101
+0010  -> 1101
+0011  -> 1101
+0100  -> 1000
+1000  -> 0100
+1010  -> 0101
+1100  -> 0111
+1111  -> 0110
+
+Microcontrol Signals
+
+load_constant (uState = 0000)
+dispatch_uop  (uState = 0011)
+load_pc = pc_rd1 & (tr_is_z | z_on)
+
+FIELD : 10_SGN_CNTRL
+        / goto(2) | fetch(1) | dr_rd0 | ar_wb1 | w_mem | pc_wb1 | pc_inc | pc_rd1 | tr_rd2 | ac_rd2 | bus2_wr(2) | z_on | res(2)
+INIT0   0               0       0          0        0       0       0        0         0        0       ac          0
+INIT1   0               0       0          0        0       1       0        0         0        0       ac          0
+INIT2   0               1       0          0        0       1       0        0         0        0       ac          0
+READY   0               0       0          1        0       0       1        0         1        0       ac          0
+JMP1    1               0       0          1        0       0       0        1         0        0       ac          1
+JZE1    1               0       0          1        0       0       0        1         0        0       ac          0
+STA1    1               0       0          1        1       0       0        0         0        0       ac          0
+LIT1    2               0       0          0        0       1       0        0         1        1       ar          0
+INC1    0               0       1          0        0       0       0        0         0        0       dr          0
+INC2    0               0       0          1        0       0       0        0         1        0       dr          0
+INC3    1               0       0          1        1       0       0        0         0        0       dr          0
+ALU1    0               0       1          0        0       1       0        0         0        0       fn          0
+ALU2    3               1       0          0        0       1       0        0         1        1       fn          0
+
+
+Initial Program in RAM     
+@0x0100
+            LIT     0x0FFF
+            STA     0x0
+_lsl_0:     ADD     0x0
+            STA     0x0
+_lsl_1:     ADD     0x0
+            STA     0x0
+_lsl_2:     ADD     0x0
+            STA     0x0
+_lsl_3:     ADD     0x0
+            STA     0x0
+_reset:     STA     0x2
+            LIT     0x0
+            STA     0xA
+            INC     0x2
+            STA     0xA
+            INC     0x2
+            STA     0xA
+            INC     0x2
+            STA     0xA
+            INC     0x2
+            STA     0xA
+            INC     0x2
+            STA     0xA
+_loop:      LIT     0x0
+            LIT     0x0
+            JZE     _loop
