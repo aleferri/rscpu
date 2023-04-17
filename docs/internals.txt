@@ -30,6 +30,7 @@ Instructions
     , : parallel (e.g. IR <- X, AR <- Y means that both IR and AR get updated in the same clock cycle)
     ; : await next clock
     + : binary add
+    - : binary sub
     & : binary and
 
 ADD @ : 0000 address( 12 bit )
@@ -37,6 +38,12 @@ ADD @ : 0000 address( 12 bit )
     IR <- MEM[PC], AR <- MEM[PC]
     DR <- MEM[AR]; 
     AC <- AC + DR; TR <- AC + DR
+    
+SUB @ : 0001 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC];
+    DR <- MEM[AR];
+    AC <- AC - DR; TR <- AC - DR
 
 AND @ : 0010 address( 12 bit )
 
@@ -56,7 +63,11 @@ INC @ : 0100 address( 12 bit )
     DR <- MEM[AR]; 
     TR <- DR + 1;
     MEM[AR] <- TR;
+    
+IDX @ : 0101 address( 12 bit )
 
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    BP <- MEM[AR];
 
 JMP @ : 1000 address( 12 bit )
 
@@ -71,8 +82,13 @@ JZE @ : 1010 address( 12 bit )
 LIT @ : 1100 literal( 12 bit )
 
     IR <- MEM[PC], AR <- MEM[PC]; 
-    DR <- MEM[AR]
-    AC <- DR; TR <- DR
+    DR <- MEM[AR];
+    AC <- DR, TR <- DR;
+    
+LEA @ : 1101 address( 12 bit )
+    IR <- MEM[PC], AR <- MEM[PC];
+    AR <- MEM[AR];
+    BP <- BP + AR;
 
 STA @ : 1111 address( 12 bit )
 
@@ -174,6 +190,7 @@ LIT0 : ~PC_WB1, AR_WB1, PC_INC;
 LIT1 : AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
 STA0 : ~PC_WB1, AR_WB1, PC_INC;
 STA1 : W_MEM, GOTO_1;
+IDX0 : ~PC_WB1, AR_WB1, PC_INC;
 
 
 
@@ -221,14 +238,15 @@ ALU2    = 1110
 
 
 Opcodes to Microcontrol States
-0000  -> 1101
-0010  -> 1101
-0011  -> 1101
-0100  -> 1000
-1000  -> 0100
-1010  -> 0101
-1100  -> 0111
-1111  -> 0110
+0000  -> 1101   =   0  -> D
+0001  -> 1101   =   1  -> D
+0010  -> 1101   =   2  -> D
+0011  -> 1101   =   3  -> D
+0100  -> 1000   =   4  -> 8
+1000  -> 0100   =   8  -> 4
+1010  -> 0101   =   A  -> 5
+1100  -> 0111   =   C  -> 7
+1111  -> 0110   =   F  -> 6
 
 Microcontrol Signals
 
@@ -236,21 +254,21 @@ load_constant (uState = 0000)
 dispatch_uop  (uState = 0011)
 load_pc = pc_rd1 & (tr_is_z | z_on)
 
-FIELD : 10_SGN_CNTRL
-        / goto(2) | fetch(1) | dr_rd0 | ar_wb1 | w_mem | pc_wb1 | pc_inc | pc_rd1 | tr_rd2 | ac_rd2 | bus2_wr(2) | z_on | res(2)
-INIT0   0               0       0          0        0       0       0        0         0        0       ac          0
-INIT1   0               0       0          0        0       1       0        0         0        0       ac          0
-INIT2   0               1       0          0        0       1       0        0         0        0       ac          0
-READY   0               0       0          1        0       0       1        0         1        0       ac          0
-JMP1    1               0       0          1        0       0       0        1         0        0       ac          1
-JZE1    1               0       0          1        0       0       0        1         0        0       ac          0
-STA1    1               0       0          1        1       0       0        0         0        0       ac          0
-LIT1    2               0       0          0        0       1       0        0         1        1       ar          0
-INC1    0               0       1          0        0       0       0        0         0        0       dr          0
-INC2    0               0       0          1        0       0       0        0         1        0       dr          0
-INC3    1               0       0          1        1       0       0        0         0        0       dr          0
-ALU1    0               0       1          0        0       1       0        0         0        0       fn          0
-ALU2    3               1       0          0        0       1       0        0         1        1       fn          0
+FIELD : 16_SGN_CNTRL
+        / goto(2) | fetch(1) | dr_rd0 || ar_wb1 | w_mem | pc_wb1 | pc_inc || pc_rd1 | tr_rd2 | ac_rd2 | z_on || bus2_wr(2) | res(2)
+INIT0   0               0       0          0        0       0       0        0         0        0         0         ac          0       =   0000 || 0000 || 0000 || 0100    =   0004
+INIT1   0               0       0          0        0       1       0        0         0        0         0         ac          0       =   0000 || 0010 || 0000 || 0100    =   0204
+INIT2   0               1       0          0        0       1       0        0         0        0         0         ac          0       =   0010 || 0010 || 0000 || 0100    =   2204
+READY   0               0       0          1        0       0       1        0         1        0         0         ac          0       =   0000 || 1001 || 0100 || 0100    =   0942
+JMP1    1               0       0          1        0       0       0        1         0        0         1         ac          0       =   0100 || 1000 || 1001 || 0100    =   4892
+JZE1    1               0       0          1        0       0       0        1         0        0         0         ac          0       =   0100 || 1000 || 1000 || 0100    =   4882
+STA1    1               0       0          1        1       0       0        0         0        0         0         ac          0       =   0100 || 1100 || 0000 || 0100    =   4C04
+LIT1    2               0       0          0        0       1       0        0         1        1         0         ar          0       =   1000 || 0010 || 0110 || 1100    =   825C
+INC1    0               0       1          0        0       0       0        0         0        0         0         dr          0       =   0001 || 0000 || 0000 || 0000    =   1000
+INC2    0               0       0          1        0       0       0        0         1        0         0         dr          0       =   0000 || 1000 || 0100 || 0000    =   0840
+INC3    1               0       0          1        1       0       0        0         0        0         0         dr          0       =   0100 || 1100 || 0000 || 0000    =   4C00
+ALU1    0               0       1          0        0       1       0        0         0        0         0         fn          0       =   0010 || 0010 || 0000 || 1000    =   2208
+ALU2    3               1       0          0        0       1       0        0         1        1         0         fn          0       =   1110 || 0010 || 0011 || 1000    =   E238
 
 
 Initial Program in RAM     
