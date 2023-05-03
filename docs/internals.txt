@@ -63,11 +63,6 @@ INC @ : 0100 address( 12 bit )
     DR <- MEM[AR]; 
     TR <- DR + 1;
     MEM[AR] <- TR;
-    
-IDX @ : 0101 address( 12 bit )
-
-    IR <- MEM[PC], AR <- MEM[PC]; 
-    BP <- MEM[AR];
 
 JMP @ : 1000 address( 12 bit )
 
@@ -85,10 +80,11 @@ LIT @ : 1100 literal( 12 bit )
     DR <- MEM[AR];
     AC <- DR, TR <- DR;
     
-LEA @ : 1101 address( 12 bit )
+SBP @ : 1101 address( 12 bit )
+
     IR <- MEM[PC], AR <- MEM[PC];
     AR <- MEM[AR];
-    BP <- BP + AR;
+    BP <- MEM[AR];
 
 STA @ : 1111 address( 12 bit )
 
@@ -190,7 +186,8 @@ LIT0 : ~PC_WB1, AR_WB1, PC_INC;
 LIT1 : AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
 STA0 : ~PC_WB1, AR_WB1, PC_INC;
 STA1 : W_MEM, GOTO_1;
-IDX0 : ~PC_WB1, AR_WB1, PC_INC;
+LBP0 : ~PC_WB1, AR_WB1, PC_INC;
+LBP1 : BP_RB0, GOTO_1;
 
 
 
@@ -206,14 +203,15 @@ INIT2 : FETCH;              // FETCH OP
 READY : ~PC_WB1, AR_WB1, PC_INC;
 {
     ALU1: DR_RB0, PC_WB1;
-    ALU2: AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
+    ALU2: AC_RB2, TR_RB2, FN_WB2, FETCH, BP_CLR, GOTO_3;
     INC1: DR_RB0;
     INC2: DR_WB2, TR_RB2;
-    INC3: W_MEM, AC_WB2, TR_RB2, GOTO_1;
-    JMP1: PC_RB1, GOTO_1;
-    JZE1: PC_RB1 & TR_IS_Z, GOTO_1;
-    LIT1: AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
-    STA1: W_MEM, GOTO_1;
+    INC3: W_MEM, AC_WB2, TR_RB2, BP_CLR, GOTO_1;
+    JMP1: PC_RB1, BP_CLR, GOTO_1;
+    JZE1: PC_RB1 & TR_IS_Z, BP_CLR, GOTO_1;
+    LIT1: AC_RB2, TR_RB2, AR_WB2, PC_WB1, BP_CLR, GOTO_2;
+    STA1: W_MEM, BP_CLR, GOTO_1;
+    LBP1: BP_RB0, GOTO_1;
 }
 
 Microcode (16 bit):
@@ -260,15 +258,16 @@ INIT0   0               0       0          0        0       0       0        0  
 INIT1   0               0       0          0        0       1       0        0         0        0         0         ac          0       =   0000 || 0010 || 0000 || 0100    =   0204
 INIT2   0               1       0          0        0       1       0        0         0        0         0         ac          0       =   0010 || 0010 || 0000 || 0100    =   2204
 READY   0               0       0          1        0       0       1        0         1        0         0         ac          0       =   0000 || 1001 || 0100 || 0100    =   0942
-JMP1    1               0       0          1        0       0       0        1         0        0         1         ac          0       =   0100 || 1000 || 1001 || 0100    =   4892
-JZE1    1               0       0          1        0       0       0        1         0        0         0         ac          0       =   0100 || 1000 || 1000 || 0100    =   4882
-STA1    1               0       0          1        1       0       0        0         0        0         0         ac          0       =   0100 || 1100 || 0000 || 0100    =   4C04
+JMP1    1               0       0          1        0       0       0        1         0        0         1         ac          0       =   0100 || 1000 || 1001 || 0101    =   4893
+JZE1    1               0       0          1        0       0       0        1         0        0         0         ac          0       =   0100 || 1000 || 1000 || 0101    =   4883
+STA1    1               0       0          1        1       0       0        0         0        0         0         ac          0       =   0100 || 1100 || 0000 || 0101    =   4C05
 LIT1    2               0       0          0        0       1       0        0         1        1         0         ar          0       =   1000 || 0010 || 0110 || 1100    =   825C
 INC1    0               0       1          0        0       0       0        0         0        0         0         dr          0       =   0001 || 0000 || 0000 || 0000    =   1000
 INC2    0               0       0          1        0       0       0        0         1        0         0         dr          0       =   0000 || 1000 || 0100 || 0000    =   0840
-INC3    1               0       0          1        1       0       0        0         0        0         0         dr          0       =   0100 || 1100 || 0000 || 0000    =   4C00
+INC3    1               0       0          1        1       0       0        0         0        0         0         dr          0       =   0100 || 1100 || 0000 || 0001    =   4C01
 ALU1    0               0       1          0        0       1       0        0         0        0         0         fn          0       =   0010 || 0010 || 0000 || 1000    =   2208
-ALU2    3               1       0          0        0       1       0        0         1        1         0         fn          0       =   1110 || 0010 || 0011 || 1000    =   E238
+ALU2    3               1       0          0        0       1       0        0         1        1         0         fn          0       =   1110 || 0010 || 0011 || 1001    =   E239
+LBP1    1               0       0          1        0       0       0    ||  0         0        0         0  ||     fn          2       =   0100 || 1000 || 0000 || 1010    =   480A
 
 
 Initial Program in RAM     
