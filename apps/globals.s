@@ -24,14 +24,14 @@ _const_2: .dw 2
 _const_4: .dw 4
 _const_jmp: .dw 0x8000
 
-_protected:     JMP __terror
-                JMP __terror
+_protected:     JMP __t_error
+                JMP __t_error
 _trampoline:    .dw 0
-                JMP __terror
-                JMP __terror
+                JMP __t_error
+                JMP __t_error
                 
 _ioptr:     .dw 0xFFF0
 
 
-__terror:   LDI 0
-            JMP __terror
+__t_error:  LDI 0
+            JMP __t_error

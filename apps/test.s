@@ -21,17 +21,16 @@
 
 .include "globals.s"
 
-.advance 0x0100
-
-__boot:     JMP     __init
-			LIT     0
-			JZE     __init.hard_err           ; jmp didn't work
-
 __shadow:   .dw 0xF
 
-.org        0x400
+.advance 0x0200                         ; in reality 0x100
 
-__init:    LIT     1
+__boot:     LIT     0
+            LIT     4
+            JMP     __init
+            LIT     0
+
+__init:     LIT     1
 			JZE     .hard_err			; one or both of LIT/JZE not working
             STA     __shadow
             LIT     0
