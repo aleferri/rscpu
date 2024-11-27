@@ -73,10 +73,10 @@ __init:     LIT     1
 ;.oksti:
 
 .print:		LIT     0                   ; _ix0 = 0xFFF0
-            ADD     _ioptr
+            ADD     _ioptr              
             STA     _ix0
 			
-.hello:		STA     _ix1               ; _ix1 = 0xFFF0
+.hello:		STA     _ix1                ; _ix1 = 0xFFF0
             LIT     0
             
 .d0:		STI     _ix1
@@ -95,7 +95,8 @@ __init:     LIT     1
 .wait:      LIT     0xF
             LIT     0xE
             LIT     0xD
-            JZE     .wait
+            JZE     .hard_err
+            JMP     .wait
             LIT     0xF
             LIT     0xE
             LIT     0xD
