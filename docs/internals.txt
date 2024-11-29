@@ -55,11 +55,25 @@ NOR @ : 0011 address( 12 bit )
     DR <- MEM[AR]; 
     AC <- AC nor DR; TR <- AC nor DR
     
-INC @ : 0100 address( 12 bit )
+<!-- 
+ADI # : 0100 immediate( 12 bit )
+
+    IR <- MEM[PC], DR[11:0] <- MEM[PC], AR <- MEM[PC];
+    AC <- AC + DR; TR <- AC nor DR
+-->
+    
+INC @ : 0110 address( 12 bit )
 
     IR <- MEM[PC], AR <- MEM[PC]; 
     DR <- MEM[AR]; 
     TR <- DR + 1;
+    MEM[AR] <- TR;
+    
+SHR @ : 0111 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC];
+    DR <- MEM[AR];
+    TR <- DR >> 1;
     MEM[AR] <- TR;
 
 JMP @ : 1000 address( 12 bit )
