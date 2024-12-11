@@ -32,6 +32,10 @@ _trampoline:    .dw 0
                 
 _ioptr:     .dw 0xFFF0
 
+_pow2_units: .dw 1, 2, 4, 8, 6, 2, 4
+_pow2_tens: .dw 0, 0, 0, 0, 1, 3, 6
+    
+
 
 __t_error:  LDI 0
             JMP __t_error

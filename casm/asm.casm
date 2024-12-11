@@ -58,6 +58,11 @@
     .outr [ .expr OPC_HIGH(0x40, addr12), .expr OPC_LOW(addr12) ];
 }
 
+.opcode SHR {{ addr12 }}
+.with ( addr12 : Ints ) -> {
+    .outr [ .expr OPC_HIGH(0x50, addr12), .expr OPC_LOW(addr12) ];
+}
+
 // Binary ALU
 .opcode ADD {{ addr12 }}
 .with ( addr12 : Ints ) -> {
