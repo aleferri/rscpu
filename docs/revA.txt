@@ -1,0 +1,186 @@
+
+Changes:
+    - ALU take 2 bits from IR, but the flow of uops is the same, put a 4 bit field in the first byte to codify ALU function and group all instructions in two families, ALU immediate and ALU memory
+    - deprecated LIT for removal
+    - Make the opcodes in ALU: ADD, MOV, SUB, CMP, AND, XOR, ORA, NOR
+    
+    
+FETCH IR, AR, DR -> MASK_AR_10, MASK_AR_12
+
+MASK_AR_10 = IS_ALU
+MASK_AR_12 = RST_MASK
+
+  
+ALU # : 0000 fn(4) zero(8)
+    
+    IR <- MEM[PC], AR <- MEM[PC], DR <- MEM[PC];
+    DR <- MEM[PC], PC <- PC + 1;
+    AC <- AC op DR
+    
+ALU @ : 0010 fn(2) adr(10)
+
+    IR <- MEM[PC], AR <- MEM[PC];
+    DR <- MEM[AR];
+    AC <- AC op DR;
+
+ALU @ : 0011 fn(2) adr(10)
+
+    IR <- MEM[PC], AR <- MEM[PC];
+    DR <- MEM[AR];
+    AC <- AC op DR;
+    
+INC @ : 0100 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    DR <- MEM[AR]; 
+    TR <- DR + 1;
+    MEM[AR] <- TR;
+    
+SHR @ : 0111 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC];
+    DR <- MEM[AR];
+    TR <- DR >> 1;
+    MEM[AR] <- TR;
+
+JMP @ : 1000 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    PC <- AR;
+
+JZE @ : 1010 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    PC <- AR IF AC == 0;
+    
+LDA @ : 1100 address( 12 bit )
+
+	IR <- MEM[PC], AR <- MEM[PC];
+    DR <- MEM[AR];
+    AC <- MEM[AR]; TR <- MEM[AR];
+    
+LDI @ : 1101 address( 12 bit )
+
+	IR <- MEM[PC], AR <- MEM[PC];
+    AR <- MEM[AR];
+    AC <- MEM[AR]; TR <- MEM[AR];
+
+STA @ : 1110 address( 12 bit )
+
+    IR <- MEM[PC], AR <- MEM[PC]; 
+    MEM[AR] <- TR;
+	
+STI @ : 1111 address( 12 bit )
+
+	IR <- MEM[PC], AR <- MEM[PC]; 
+    AR <- MEM[AR];
+	MEM[AR] <- TR;
+
+
+BUS_0 := connect( AR(read), DR(read), IR(read), MEM_D_IN(write) );                      BUS_0 has only one writer (MEM_D_IN)
+BUS_1 := connect( PC(read), PC(write), AR(write), MEM_ADR(read), 0x100(write) );        BUS_1 has three writers (AR, PC, 0x0100), and two reader (PC & MEM_ADR)
+BUS_2 := connect( TR(read), AC(read/write), ALU(write), DR(write), DR_UNY(write) );     BUS_2 has four writers (ALU, AC, DR, DR_URY) and two readers (TR & AC)
+
+
+Signals
+
+AR_RB0          AR <- BUS_0
+DR_RB0          DR <- BUS_0
+IR_RB0          IR <- BUS_0
+PC_RB1          PC <- BUS_1
+PC_WB1          PC -> BUS_1
+AR_WB1          AR -> BUS_1
+TR_RB2          TR <- BUS_2
+AC_RB2          AC <- BUS_2
+FN_WB2          FN -> BUS_2     ( ALU binary operations )
+DR_WB2          DR -> BUS_2
+UN_WB2          UN -> BUS_2     ( Unary operations )
+ALU_MUX         ALU <- select( AC + DR, AC & DR, AC nor DR )
+W_MEM           MEM[ MEM_ADR ] <- TR
+PC_INC          PC <- PC + 1
+
+
+
+Registers Signals:
+
+
+IR signals:
+IR_LOAD_0 = OP_LOAD_0
+
+AR signals:
+AR_LOAD_0
+AR_OUTP_1
+
+DR signals:
+DR_LOAD_0
+DR_OUTP_2
+
+PC signals:
+PC_LOAD_1
+PC_OUTP_1
+PC_INC
+
+TR signals:
+TR_LOAD_2
+
+AC signals:
+AC_LOAD_2
+AC_OUTP_2
+
+FN signals:
+FN_OUTP_2
+FN_MUX
+
+UN signals:
+UN_MUX
+UN_OUTP_2
+
+
+
+Direct links
+
+AC          -> ALU_PORT_0
+DR          -> ALU_PORT_1
+TR          -> MEM_D_OUT
+IR[1:0]     -> UN_MUX
+OP[3:0]     -> FN_MUX
+
+
+
+
+Microcontrol States
+
+INIT0: PC_WB1;
+INIT1 : PC_WB1, ~AR_WB1;    // PUT OUT PC
+INIT2 : Q_RB0, PC_INC;      // Read Queue Word
+INIT3 : FETCH_AR; FETCH_IR, FETCH_DR, Q_RB0; // Collapsed in FETCH signal, FETCH must also mask AR to taken only the lowest 12 bit
+ALUI0 : ~PC_WB1, AR_WB1, PC_INC;
+ALUI1 : PC_WB1, ~AR_WB1, DR_RB0;
+ALUI3 : AC_RB2, TR_RB2, FN_WB2, Q_RB0, PC_INC, FETCH, GOTO_3;
+ALUM0 : ~PC_WB1, AR_WB1, PC_INC;
+ALUM1 : PC_WB1, ~AR_WB1, AR_RB0;
+ALUM2 : Q_RB0, PC_INC;
+ALUM3 : AR_WB1, ~PC_WB1;
+ALUM4 : DR_RB0;
+ALUM5 : AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
+
+INC0 : ~PC_WB1, AR_WB1, PC_INC;
+INC1 : DR_RB0;
+INC2 : DR_WB2, TR_RB2;
+INC3 : W_MEM, AC_WB2, TR_RB2, GOTO_1;
+JMP0 : ~PC_WB1, AR_WB1, PC_INC;
+JMP1 : PC_RB1, GOTO_1;;
+JZE0 : ~PC_WB1, AR_WB1, PC_INC;
+JZE1 : PC_RB1 & TR_IS_Z, GOTO_1;
+LIT0 : ~PC_WB1, AR_WB1, PC_INC;
+LIT1 : AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
+STA0 : ~PC_WB1, AR_WB1, PC_INC;
+STA1 : W_MEM, GOTO_1;
+LDI0 : ~PC_WB1, AR_WB1, PC_INC;
+LDI1 : FETCH_AR, ~PC_WB1, AR_WB1;
+LDI2 : AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
+STI0 : ~PC_WB1, AR_WB1, PC_INC;
+STI1 : FETCH_AR, ~PC_WB1, AR_WB1;
+STI2 : W_MEM, GOTO_1;
+
+uop = j fe pc_inc reset_mask lar ldr lac ltr bm1<1> bm2<2> w_mem
