@@ -68,9 +68,9 @@ __split_bin:    LIT     0x7F
                 LIT    0
                 ADD    _g0
                 AND    _const_jmp
-                JZE    +1
+                JZE    .skip2
                 JMP    .print
-                LIT    0
+.skip2:         LIT    0
                 ADD    _g0
                 SUB    _g3
                 STA    _g0

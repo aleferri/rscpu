@@ -55,13 +55,6 @@ NOR @ : 0011 address( 12 bit )
     DR <- MEM[AR]; 
     AC <- AC nor DR; TR <- AC nor DR
     
-<!-- 
-ADI # : 0100 immediate( 12 bit )
-
-    IR <- MEM[PC], DR[11:0] <- MEM[PC], AR <- MEM[PC];
-    AC <- AC + DR; TR <- AC nor DR
--->
-    
 INC @ : 0110 address( 12 bit )
 
     IR <- MEM[PC], AR <- MEM[PC]; 
@@ -80,11 +73,20 @@ JMP @ : 1000 address( 12 bit )
 
     IR <- MEM[PC], AR <- MEM[PC]; 
     PC <- AR;
+    
+JPI @ : 1001 address( 12 bit )          -- TODO
+    IR <- MEM[PC], AR <- MEM[PC];
+    AR <- MEM[AR]
+    PC <- AR
 
 JZE @ : 1010 address( 12 bit )
 
     IR <- MEM[PC], AR <- MEM[PC]; 
     PC <- AR IF AC == 0;
+    
+JSG @ : 1011 address( 12 bit )          -- TODO
+    IR <- MEM[PC], AR <- MEM[PC];
+    PC <- AR IF AC[15] == 1;
 
 LIT @ : 1100 literal( 12 bit )
 
@@ -108,6 +110,17 @@ STI @ : 1111 address( 12 bit )
 	IR <- MEM[PC], AR <- MEM[PC]; 
     AR <- MEM[AR];
 	MEM[AR] <- TR;
+    
+Future plan:
+Address: reduce 12 to 10 bit
+LDI -> LDA
+JZE as relative, JNZ as relative
+
+Immediate group ALU: LIT, ADI, SBI, ANI, ORI, XRI:
+    IR <- MEM[PC], AR <- MEM[PC]
+    PC <- PC + 1
+    DR <- MEM[PC]
+    
 
 Shared BUS
 
@@ -195,7 +208,13 @@ NOR2 : AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
 INC0 : ~PC_WB1, AR_WB1, PC_INC;
 INC1 : DR_RB0;
 INC2 : DR_WB2, TR_RB2;
-INC3 : W_MEM, AC_WB2, TR_RB2, GOTO_1;
+INC3 : AR_WB1, W_MEM;
+INC4 : AR_WB1, AC_WB2, TR_RB2, GOTO_1;
+SHR0 : ~PC_WB1, AR_WB1, PC_INC;
+SHR1 : DR_RB0;
+SHR2 : DR_WB2, TR_RB2;
+SHR3 : AR_WB1, W_MEM;
+SHR4 : AR_WB1, AC_WB2, TR_RB2, GOTO_1;
 JMP0 : ~PC_WB1, AR_WB1, PC_INC;
 JMP1 : PC_RB1, GOTO_1;;
 JZE0 : ~PC_WB1, AR_WB1, PC_INC;
@@ -215,9 +234,14 @@ STI2 : W_MEM, GOTO_1;
 
 States Reduction
 
-ADD0 = AND0 = NOR0 = INC0 = JMP0 = JZO0 = LIT0 = STA0 = LDI0 = STI0 -> READY
+ADD0 = AND0 = NOR0 = INC0 = SHR0 = JMP0 = JZO0 = LIT0 = STA0 = LDI0 = STI0 -> READY
 ADD1 = AND1 = NOR1 -> ALU1
 ADD2 = AND2 = NOR2 -> ALU2
+
+INC1 = SHR1 = MAL1
+INC2 = SHR2 = MAL2
+INC3 = SHR3 = MAL3
+INC4 = SHR4 = MAL4
 
 INIT0 : LD_PC #0100;        // INIT PC
 INIT1 : PC_WB1, ~AR_WB1;    // PUT OUT PC
@@ -225,14 +249,15 @@ INIT2 : FETCH_IR, FETCH_AR; // FETCH OP
 READY : ~PC_WB1, AR_WB1, PC_INC;
 {
     ALU1: DR_RB0, PC_WB1;
-    ALU2: AC_RB2, TR_RB2, FN_WB2, FETCH, BP_CLR, GOTO_3;
-    INC1: DR_RB0;
-    INC2: DR_WB2, TR_RB2;
-    INC3: W_MEM, AC_WB2, TR_RB2, BP_CLR, GOTO_1;
-    JMP1: PC_RB1, BP_CLR, GOTO_1;
-    JZE1: PC_RB1 & TR_IS_Z, BP_CLR, GOTO_1;
-    LIT1: AC_RB2, TR_RB2, AR_WB2, PC_WB1, BP_CLR, GOTO_2;
-    STA1: W_MEM, BP_CLR, GOTO_1;
+    ALU2: AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
+    MAL1: DR_RB0;
+    MAL2: DR_WB2, TR_RB2;
+    MAL3: AR_WB1, W_MEM;
+    MAL4: AR_WB1, AC_WB2, TR_RB2, GOTO_1;
+    JMP1: PC_RB1, GOTO_1;
+    JZE1: PC_RB1 & TR_IS_Z, GOTO_1;
+    LIT1: AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
+    STA1: W_MEM, GOTO_1;
     LDI1: FETCH_AR, ~PC_WB1, AR_WB1;
 	LDI2: AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
 	STI1: FETCH_AR, ~PC_WB1, AR_WB1;
@@ -252,10 +277,10 @@ JMP1    = 00100		-> 4
 JZE1    = 00101		-> 5
 STA1    = 00110		-> 6
 STA2    = 00111     -> 7
-INC1    = 01000		-> 8
-INC2    = 01001		-> 9
-INC3    = 01010		-> A
-INC4    = 01011     -> B
+MAL1    = 01000		-> 8
+MAL2    = 01001		-> 9
+MAL3    = 01010		-> A
+MAL4    = 01011     -> B
 LIT1    = 01100		-> C
 ALU1    = 01101		-> D
 ALU2    = 01110		-> E
@@ -272,6 +297,7 @@ Opcodes to Microcontrol States
 0010  -> 01101   =   2  -> D
 0011  -> 01101   =   3  -> D
 0100  -> 01000   =   4  -> 8
+0101  -> 01000   =   5  -> 8
 1000  -> 00100   =   8  -> 4
 1010  -> 00101   =   A  -> 5
 1100  -> 00111   =   C  -> C

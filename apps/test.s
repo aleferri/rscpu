@@ -26,13 +26,15 @@ __shadow:   .dw 0xF
 .advance 0x0200                         ; in reality 0x100
 
 __boot:     LIT     6
-            STA     __shadow
-            LIT     7
-            STA     __shadow
-            INC     __shadow
-            INC     __shadow
-            INC     __shadow
-            JMP     __init.print
+            STA     _arg0
+            LIT     __init.print
+            STA     _ra
+            LIT     0
+            ADD     _ioptr
+            STA     _arg1
+            JMP     __split_bin
+            
+.include "lib.s"
 
 __init:     LIT     1
 			JZE     .hard_err			; one or both of LIT/JZE not working
@@ -74,23 +76,25 @@ __init:     LIT     1
 
 .print:		LIT     0                   ; _ix0 = 0xFFF0
             ADD     _ioptr              
-            STA     _ix0
+
+.dg0:       STA     _arg1
+            LIT     8
+            STA     _arg0
+            LIT     .dg1
+            STA     _ra
+            JMP     __split_bin
+
+.dg1:       LIT     46
+            STA     _arg0
+            LIT     .dg2
+            STA     _ra
+            JMP     __split_bin
 			
-.hello:		STA     _ix1                ; _ix1 = 0xFFF0
-            LIT     0
-            
-.d0:		STI     _ix1
-			INC     _ix1
-.d1:        STI     _ix1
-			INC     _ix1
-.d2:		STI     _ix1
-			INC     _ix1
-.d3:		STI     _ix1
-			INC     _ix1
-.d4:        STI     _ix1
-			INC     _ix1
-.d5:        STI     _ix1
-			INC     _ix1
+.dg2:		LIT     17
+            STA     _arg0
+            LIT     .wait
+            STA     _ra
+            JMP     __split_bin
 			
 .wait:      LIT     0xF
             LIT     0xE
@@ -103,3 +107,4 @@ __init:     LIT     1
 			
 .hard_err:  LIT     0
             JMP     .hard_err
+           
