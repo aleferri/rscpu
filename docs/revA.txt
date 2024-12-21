@@ -10,67 +10,64 @@ FETCH IR, AR, DR -> MASK_AR_10, MASK_AR_12
 MASK_AR_10 = IS_ALU
 MASK_AR_12 = RST_MASK
 
+address = 
+    1 bit addressing mode: 
+        0 -> Absolute
+        1 -> PC Relative
+    
+    10/11 bit address/offset
+    
+Phases:
+    CALC_EA(PC, AR[9/10:0])
   
-ALU # : 0000 fn(4) zero(8)
+ALU @ : 00ff address( 12 bit )                      EA = PC + offset / address      AGU(0: PC * E, 1: ARG[9:0])                  
     
     IR <- MEM[PC], AR <- MEM[PC], DR <- MEM[PC];
     DR <- MEM[PC], PC <- PC + 1;
     AC <- AC op DR
     
-ALU @ : 0010 fn(2) adr(10)
-
-    IR <- MEM[PC], AR <- MEM[PC];
-    DR <- MEM[AR];
-    AC <- AC op DR;
-
-ALU @ : 0011 fn(2) adr(10)
-
-    IR <- MEM[PC], AR <- MEM[PC];
-    DR <- MEM[AR];
-    AC <- AC op DR;
-    
-INC @ : 0100 address( 12 bit )
+INC @ : 0100 address( 12 bit )                      EA = PC + offset / address      AGU(0: PC * E, 1: ARG[10:0])
 
     IR <- MEM[PC], AR <- MEM[PC]; 
     DR <- MEM[AR]; 
     TR <- DR + 1;
     MEM[AR] <- TR;
     
-SHR @ : 0111 address( 12 bit )
+SHR @ : 0111 address( 12 bit )                      EA = PC + offset / address      AGU(0: PC * E, 1: ARG[10:0])
 
     IR <- MEM[PC], AR <- MEM[PC];
     DR <- MEM[AR];
     TR <- DR >> 1;
     MEM[AR] <- TR;
 
-JMP @ : 1000 address( 12 bit )
+JMP @ : 1000 address( 12 bit )                      EA = PC + offset / address      AGU(0: PC * E, 1: ARG[10:0])
 
     IR <- MEM[PC], AR <- MEM[PC]; 
     PC <- AR;
 
-JZE @ : 1010 address( 12 bit )
+JZE @ : 1010 address( 12 bit )                      EA = PC + offset / address      AGU(0: PC * E, 1: ARG[10:0])
 
     IR <- MEM[PC], AR <- MEM[PC]; 
     PC <- AR IF AC == 0;
     
-LDA @ : 1100 address( 12 bit )
+LDA @ : 1100 address( 12 bit )                      EA = PC + offset / address      AGU(0: PC * E, 1: ARG[10:0])
 
 	IR <- MEM[PC], AR <- MEM[PC];
     DR <- MEM[AR];
     AC <- MEM[AR]; TR <- MEM[AR];
     
-LDI @ : 1101 address( 12 bit )
+LDI @ : 1101 address( 12 bit )                      EA = MEM[PC + offset / address]      AGU(0: PC * E, 1: ARG[10:0]); AR <- MEM; AGU(0: 0, 1: ARG[15:0])
 
 	IR <- MEM[PC], AR <- MEM[PC];
     AR <- MEM[AR];
     AC <- MEM[AR]; TR <- MEM[AR];
 
-STA @ : 1110 address( 12 bit )
+STA @ : 1110 address( 12 bit )                      EA = PC + offset / address      AGU(0: PC * E, 1: ARG[10:0])
 
     IR <- MEM[PC], AR <- MEM[PC]; 
     MEM[AR] <- TR;
 	
-STI @ : 1111 address( 12 bit )
+STI @ : 1111 address( 12 bit )                      EA = MEM[PC + offset / address]      AGU(0: PC * E, 1: ARG[10:0]); AR <- MEM; AGU(0: 0, 1: ARG[15:0])
 
 	IR <- MEM[PC], AR <- MEM[PC]; 
     AR <- MEM[AR];

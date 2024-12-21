@@ -27,6 +27,12 @@ __shadow:   .dw 0xF
 
 __boot:     LIT     6
             STA     _arg0
+            SHR     _arg0
+            LIT     3
+            SUB     _arg0
+            JZE     .ok
+            JMP     __init.hard_err
+.ok:
             LIT     __init.print
             STA     _ra
             LIT     0
