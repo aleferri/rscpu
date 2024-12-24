@@ -1,11 +1,19 @@
 
+PC - 16 bit  -- Visible, Program Counter
+AC - 16 bit  -- ACcumulator register
+DR - 16 bit  -- Data Register, contains the read data
+TR - 16 bit  -- Temp Register, contains AC at the beginning of each instruction
+AR - 16 bit  -- Argument Register
+MA - 16 bit  -- Memory Address Register
+IR - 04 bit  -- Instruction Register, contains the 4 bits opcode 
+
 Changes:
     - ALU take 2 bits from IR, but the flow of uops is the same, put a 4 bit field in the first byte to codify ALU function and group all instructions in two families, ALU immediate and ALU memory
     - deprecated LIT for removal
     - Make the opcodes in ALU: ADD, MOV, SUB, CMP, AND, XOR, ORA, NOR
     
     
-FETCH IR, AR, DR -> MASK_AR_10, MASK_AR_12
+FETCH IR, AR -> MASK_AR_10, MASK_AR_12
 
 MASK_AR_10 = IS_ALU
 MASK_AR_12 = RST_MASK
@@ -17,8 +25,6 @@ address =
     
     10/11 bit address/offset
     
-Phases:
-    CALC_EA(PC, AR[9/10:0])
   
 ALU @ : 00ff address( 12 bit )                      EA = PC + offset / address      AGU(0: PC * E, 1: ARG[9:0])                  
     
@@ -75,7 +81,7 @@ STI @ : 1111 address( 12 bit )                      EA = MEM[PC + offset / addre
 
 
 BUS_0 := connect( AR(read), DR(read), IR(read), MEM_D_IN(write) );                      BUS_0 has only one writer (MEM_D_IN)
-BUS_1 := connect( PC(read), PC(write), AR(write), MEM_ADR(read), 0x100(write) );        BUS_1 has three writers (AR, PC, 0x0100), and two reader (PC & MEM_ADR)
+BUS_1 := connect( MAR(write), MEM_ADR(read) );                                          BUS_1 has only one wirter (MAR), and one reader (MEM_ADR)
 BUS_2 := connect( TR(read), AC(read/write), ALU(write), DR(write), DR_UNY(write) );     BUS_2 has four writers (ALU, AC, DR, DR_URY) and two readers (TR & AC)
 
 
@@ -114,8 +120,6 @@ DR_OUTP_2
 
 PC signals:
 PC_LOAD_1
-PC_OUTP_1
-PC_INC
 
 TR signals:
 TR_LOAD_2
@@ -139,6 +143,7 @@ Direct links
 AC          -> ALU_PORT_0
 DR          -> ALU_PORT_1
 TR          -> MEM_D_OUT
+MAR         -> MEM_A_OUT
 IR[1:0]     -> UN_MUX
 OP[3:0]     -> FN_MUX
 
@@ -147,37 +152,38 @@ OP[3:0]     -> FN_MUX
 
 Microcontrol States
 
-INIT0: PC_WB1;
-INIT1 : PC_WB1, ~AR_WB1;    // PUT OUT PC
-INIT2 : Q_RB0, PC_INC;      // Read Queue Word
-INIT3 : FETCH_AR; FETCH_IR, FETCH_DR, Q_RB0; // Collapsed in FETCH signal, FETCH must also mask AR to taken only the lowest 12 bit
-ALUI0 : ~PC_WB1, AR_WB1, PC_INC;
-ALUI1 : PC_WB1, ~AR_WB1, DR_RB0;
-ALUI3 : AC_RB2, TR_RB2, FN_WB2, Q_RB0, PC_INC, FETCH, GOTO_3;
-ALUM0 : ~PC_WB1, AR_WB1, PC_INC;
-ALUM1 : PC_WB1, ~AR_WB1, AR_RB0;
-ALUM2 : Q_RB0, PC_INC;
-ALUM3 : AR_WB1, ~PC_WB1;
-ALUM4 : DR_RB0;
-ALUM5 : AC_RB2, TR_RB2, FN_WB2, FETCH, GOTO_3;
+INIT0 : EA = const(400h); MAR = EA; PC = EA
+INIT1 : FETCH;
+INIT2 : DISPATCH; EA = abs|rel(IR); MAR = EA;   <prevent dispatch if JZE and ac is not z>
+INIT3 : EA = inc; MAR = EA; PC = EA; END_FETCH
 
-INC0 : ~PC_WB1, AR_WB1, PC_INC;
-INC1 : DR_RB0;
-INC2 : DR_WB2, TR_RB2;
-INC3 : W_MEM, AC_WB2, TR_RB2, GOTO_1;
-JMP0 : ~PC_WB1, AR_WB1, PC_INC;
-JMP1 : PC_RB1, GOTO_1;;
-JZE0 : ~PC_WB1, AR_WB1, PC_INC;
-JZE1 : PC_RB1 & TR_IS_Z, GOTO_1;
-LIT0 : ~PC_WB1, AR_WB1, PC_INC;
-LIT1 : AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
-STA0 : ~PC_WB1, AR_WB1, PC_INC;
-STA1 : W_MEM, GOTO_1;
-LDI0 : ~PC_WB1, AR_WB1, PC_INC;
-LDI1 : FETCH_AR, ~PC_WB1, AR_WB1;
-LDI2 : AC_RB2, TR_RB2, AR_WB2, PC_WB1, GOTO_2;
-STI0 : ~PC_WB1, AR_WB1, PC_INC;
-STI1 : FETCH_AR, ~PC_WB1, AR_WB1;
-STI2 : W_MEM, GOTO_1;
+ALU0 : DR = MEM; EA = inc; PC = EA; MAR = EA; 
+ALU1 : AC = AC op DR; FETCH; END_DISPATCH
 
-uop = j fe pc_inc reset_mask lar ldr lac ltr bm1<1> bm2<2> w_mem
+INC0 : DR = MEM;
+INC1 : TR = unary DR;
+INC2 : WMEM; TR = AC; EA = inc; PC = EA; MAR = EA; END_FETCH
+
+SHR0 : DR = MEM;
+SHR1 : TR = unary DR;
+SHR2 : WMEM; TR = AC; EA = inc; PC = EA; MAR = EA; END_FETCH
+
+JMP0 : EA = abs|rel(IR); PC = EA; FETCH; END_DISPATCH
+
+JZE0 : EA = abs|rel(IR); PC = EA; FETCH; END_DISPATCH
+
+LDA0 : DR = MEM; EA = inc; PC = EA; MAR = EA;
+LDA1 : AC = DR; FETCH; END_DISPATCH
+
+LDI0 : ARG = MEM;
+LDI1 : EA = ABS; MAR = EA;
+LDI2 : DR = MEM; EA = inc; MAR = EA; PC = EA;
+LDI3 : AC = DR; FETCH; END_DISPATCH
+
+STA0 : WMEM; EA = inc; PC = EA; MAR = EA; END_FETCH
+
+STI0 : ARG = MEM;
+STI1 : EA = ABS; MAR = EA;
+STI2 : WMEM; EA = inc; MAR = EA; PC = EA; END_FETCH
+
+uop = j<2> fetch larg | ea_uop<2> lpc lmar | ldr lac ltr w_mem | bm2<2> free<2>
