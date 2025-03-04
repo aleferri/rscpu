@@ -1,4 +1,4 @@
-Modified Very Simple CPU is a teaching architecture to explain CPU implementation.
+Evolved Very Simple CPU: VS CPU is a teaching architecture to explain CPU implementation.
 I don't remember the book, if you know the book or are the author (in the same book you described the Relative Simple CPU) tell me the title
 and your name, and i will gladly cite you in the credits. Thank you.
 
@@ -33,94 +33,105 @@ Instructions
 
 ADD @ : 0000 address( 12 bit )
 
-    IR <- MEM[PC], AR <- MEM[PC]
-    DR <- MEM[AR]; 
-    AC <- AC + DR; TR <- AC + DR
+    IR <- MEM[PC], DR <- MEM[PC]
+    AR <- DR;
+    DR <- MEM[AR];                                                          -- OPT:  AR <- PC
+    AC <- AC + DR; TR <- AC + DR                                            -- OPT:  IR <- MEM[PC], DR <- MEM[PC]
     
 SUB @ : 0001 address( 12 bit )
 
-    IR <- MEM[PC], AR <- MEM[PC];
-    DR <- MEM[AR];
-    AC <- AC - DR; TR <- AC - DR
+    IR <- MEM[PC], DR <- MEM[PC]
+    AR <- DR;
+    DR <- MEM[AR];                                                          -- OPT:  AR <- PC
+    AC <- AC - DR; TR <- AC - DR                                            -- OPT:  IR <- MEM[PC], DR <- MEM[PC]
 
 AND @ : 0010 address( 12 bit )
 
-    IR <- MEM[PC], AR <- MEM[PC]
-    DR <- MEM[AR]; 
-    AC <- AC & DR; TR <- AC & DR
+    IR <- MEM[PC], DR <- MEM[PC]
+    AR <- DR;
+    DR <- MEM[AR];                                                          -- OPT:  AR <- PC
+    AC <- AC & DR; TR <- AC & DR                                            -- OPT:  IR <- MEM[PC], DR <- MEM[PC]
     
 NOR @ : 0011 address( 12 bit )
 
-    IR <- MEM[PC], AR <- MEM[PC]; 
-    DR <- MEM[AR]; 
-    AC <- AC nor DR; TR <- AC nor DR
+    IR <- MEM[PC], DR <- MEM[PC]
+    AR <- DR;
+    DR <- MEM[AR];                                                          -- OPT:  AR <- PC
+    AC <- AC nor DR; TR <- AC nor DR                                        -- OPT:  IR <- MEM[PC], DR <- MEM[PC]
+    
+LIT # : 0101 literal( 12 bit )
+
+    IR <- MEM[PC], DR <- MEM[PC];                                           -- OPT:  AR <- PC 
+    AC <- DR                                                                -- OPT:  IR <- MEM[PC], DR <- MEM[PC]
     
 INC @ : 0110 address( 12 bit )
 
-    IR <- MEM[PC], AR <- MEM[PC]; 
-    DR <- MEM[AR]; 
+    IR <- MEM[PC], DR <- MEM[PC]; 
+    AR <- DR;
+    DR <- MEM[AR];
     TR <- DR + 1;
-    MEM[AR] <- TR;
+    MEM[AR] <- TR;                                                          -- OPT:  AR <- PC              
     
 SHR @ : 0111 address( 12 bit )
 
-    IR <- MEM[PC], AR <- MEM[PC];
+    IR <- MEM[PC], DR <- MEM[PC]; 
+    AR <- DR;
     DR <- MEM[AR];
     TR <- DR >> 1;
-    MEM[AR] <- TR;
+    MEM[AR] <- TR;                                                          -- OPT:  AR <- PC
 
 JMP @ : 1000 address( 12 bit )
 
-    IR <- MEM[PC], AR <- MEM[PC]; 
-    PC <- AR;
+    IR <- MEM[PC], DR <- MEM[PC];
+    PC <- DR;                                                               -- OPT:  AR <- DR
     
 JPI @ : 1001 address( 12 bit )          -- TODO
-    IR <- MEM[PC], AR <- MEM[PC];
-    AR <- MEM[AR]
-    PC <- AR
+    IR <- MEM[PC], DR <- MEM[PC];
+    AR <- DR
+    DR <- MEM[AR]
+    PC <- DR                                                                -- OPT:  AR <- DR
 
-JZE @ : 1010 address( 12 bit )
+JNZ @ : 1010 address( 12 bit )          -- TODO
 
-    IR <- MEM[PC], AR <- MEM[PC]; 
-    PC <- AR IF AC == 0;
+    IR <- MEM[PC], DR <- MEM[PC];
+    PC <- DR IF AC == 0;
     
-JSG @ : 1011 address( 12 bit )          -- TODO
-    IR <- MEM[PC], AR <- MEM[PC];
-    PC <- AR IF AC[15] == 1;
+JZE @ : 1011 address( 12 bit )          -- TODO
 
-LIT @ : 1100 literal( 12 bit )
+    IR <- MEM[PC], DR <- MEM[PC];
+    PC <- DR IF AC[15] == 1;
 
-    IR <- MEM[PC], AR <- MEM[PC]; 
-    DR <- MEM[AR];
-    AC <- DR, TR <- DR;
+LDA @ : 1100 address( 12 bit )          -- TODO
+
+    IR <- MEM[PC], DR <- MEM[PC]
+    AR <- DR;
+    DR <- MEM[AR];                                                          -- OPT:  AR <- PC
+    AC <- DR; TR <- DR                                                      -- OPT:  IR <- MEM[PC], DR <- MEM[PC]
 	
-LDI @ : 1101 literal( 12 bit )
+LDI @ : 1101 address( 12 bit )
 
-	IR <- MEM[PC], AR <- MEM[PC];
-    AR <- MEM[AR];
-    AC <- MEM[AR]; TR <- MEM[AR];
+	IR <- MEM[PC], DR <- MEM[PC];
+    AR <- DR;
+    DR <- MEM[AR];
+    AR <- DR;
+    AC <- MEM[AR]; TR <- MEM[AR];                                           -- OPT:  AR <- PC
 
 STA @ : 1110 address( 12 bit )
 
-    IR <- MEM[PC], AR <- MEM[PC]; 
-    MEM[AR] <- TR;
+    IR <- MEM[PC], DR <- MEM[PC];
+    AR <- DR;
+    MEM[AR] <- TR;                                                          -- OPT:  AR <- PC
 	
 STI @ : 1111 address( 12 bit )
 
-	IR <- MEM[PC], AR <- MEM[PC]; 
-    AR <- MEM[AR];
-	MEM[AR] <- TR;
+	IR <- MEM[PC], DR <- MEM[PC];
+    AR <- DR;
+    DR <- MEM[AR]
+    AR <- DR;
+	MEM[AR] <- TR;                                                          -- OPT:  AR <- PC
     
-Future plan:
-Address: reduce 12 to 10 bit
-LDI -> LDA
-JZE as relative, JNZ as relative
 
-Immediate group ALU: LIT, ADI, SBI, ANI, ORI, XRI:
-    IR <- MEM[PC], AR <- MEM[PC]
-    PC <- PC + 1
-    DR <- MEM[PC]
-    
+PSEUDO (LIT followed by ADD/SUB/AND/NOR/LDA): ADL, SBL, ANL, NRL, LDL
 
 Shared BUS
 
@@ -131,18 +142,20 @@ BUS_2 := connect( TR(read), AC(read/write), ALU(write), AR(write), DR_URY(write)
 
 Signals
 
-AR_RB0          AR <- BUS_0
 DR_RB0          DR <- BUS_0
 IR_RB0          IR <- BUS_0
+AR_RB1          AR <- BUS_1
 PC_RB1          PC <- BUS_1
 PC_WB1          PC -> BUS_1
-AR_WB1          AR -> BUS_1
+DR_WB1          AR -> BUS_1
+CR_WB1          CR -> BUS_1
 TR_RB2          TR <- BUS_2
 AC_RB2          AC <- BUS_2
+DR_WB2          DR -> BUS_2
+AC_WB2          AC -> BUS_2
 FN_WB2          FN -> BUS_2     ( ALU binary operations )
-AR_WB2          AR -> BUS_2
 UN_WB2          UN -> BUS_2     ( Unary operations )
-ALU_MUX         ALU <- select( AC + DR, AC & DR, AC nor DR )
+ALU_MUX         ALU <- select( AC + DR, AC - DR, AC & DR, AC nor DR )
 W_MEM           MEM[ MEM_ADR ] <- TR
 PC_INC          PC <- PC + 1
 
@@ -154,17 +167,20 @@ IR signals:
 IR_LOAD_0
 
 AR signals:
-AR_LOAD_0
-AR_OUTP_1
-AR_OUTP_2
+AR_LOAD_1
 
 DR signals:
 DR_LOAD_0
+DR_OUTP_1
+DR_OUTP_2
 
 PC signals:
-PC_LOAD_1
+PC_LOAD
 PC_OUTP_1
 PC_INC
+
+CR signals:
+CR_OUTP_1
 
 TR signals:
 TR_LOAD_2
@@ -186,7 +202,10 @@ Direct links
 
 AC          -> ALU_PORT_0
 DR          -> ALU_PORT_1
+DR          -> ALU_MEM_0
+DR          -> PC_IN
 TR          -> MEM_D_OUT
+AR          -> MEM_A_OUT
 IR[1:0]     -> ALU_SELECT
 
 
